@@ -7,15 +7,17 @@ from livekit.plugins import (
     groq,
     noise_cancellation,
     silero,
+    azure,
 )
-from livekit.agents import stt
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
+from tools import get_information_from_web
 
 load_dotenv()
 
 class Assistant(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions=AGENT_INSTRUCTION)
+        super().__init__(instructions=AGENT_INSTRUCTION,tools=[get_information_from_web])
 
 
 async def entrypoint(ctx: agents.JobContext):
@@ -24,9 +26,9 @@ async def entrypoint(ctx: agents.JobContext):
         api_key=os.getenv("GROQ_API_KEY"),
     )
     
-    tts = groq.TTS(
-        model="playai-tts",
-        voice="Arista-PlayAI",
+    tts=azure.TTS(
+        speech_key=os.getenv("AZURE_SPEECH_KEY"),
+        speech_region=os.getenv("AZURE_SPEECH_REGION"),
     )
     stt = groq.STT(
         model="whisper-large-v3-turbo",
@@ -36,7 +38,9 @@ async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         llm=llm,
         tts=tts,
-        stt= stt
+        stt= stt,
+        vad=silero.VAD.load(),
+        turn_detection=MultilingualModel(),
     )
 
     await session.start(
@@ -44,7 +48,6 @@ async def entrypoint(ctx: agents.JobContext):
         agent=Assistant(),
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(),
-            video_enabled=True,
         ),
     )
 
