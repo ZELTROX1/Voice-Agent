@@ -7,7 +7,7 @@ from livekit.plugins import (
     groq,
     noise_cancellation,
     silero,
-    azure,
+    cartesia,
 )
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
@@ -21,15 +21,18 @@ class Assistant(Agent):
 
 
 async def entrypoint(ctx: agents.JobContext):
+    await ctx.connect()
+    
     llm = groq.LLM(
         model="llama3-70b-8192",
         api_key=os.getenv("GROQ_API_KEY"),
     )
     
-    tts=azure.TTS(
-        speech_key=os.getenv("AZURE_SPEECH_KEY"),
-        speech_region=os.getenv("AZURE_SPEECH_REGION"),
+    tts=cartesia.TTS(
+        model="sonic-2", 
+        voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"
     )
+    
     stt = groq.STT(
         model="whisper-large-v3-turbo",
         language="en",
