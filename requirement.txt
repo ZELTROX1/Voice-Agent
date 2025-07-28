@@ -1,0 +1,22 @@
+livekit==0.11.1
+
+# WebRTC and real-time communication dependencies
+aiohttp>=3.8.0
+websockets>=10.0
+
+# JWT token handling (included with livekit but listing for clarity)
+PyJWT>=2.4.0
+
+# Optional: For additional audio/video processing
+# opencv-python>=4.5.0
+# numpy>=1.20.0
+
+# Optional: For async operations and better performance
+# uvloop>=0.17.0  # Linux/macOS only
+
+# MongoDB async driver
+motor>=3.3.0
+pymongo>=4.5.0
+
+# Optional: For logging and debugging
+# python-dotenv>=0.19.0  # If using .env files
