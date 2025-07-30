@@ -1,0 +1,10 @@
+fastapi==0.116.1
+livekit==1.0.12
+livekit_api==1.0.5
+livekit_blingfire==1.0.0
+livekit_plugins_noise_cancellation==0.2.4
+livekit_protocol==1.0.4
+motor==3.7.1
+pydantic==2.11.7
+pymongo==4.13.2
+python-dotenv==1.1.1

@@ -4,6 +4,9 @@ import asyncio
 import json
 import logging
 from datetime import datetime
+import uuid
+import datetime
+from datetime import timezone
 
 from database import TwiddlesDatabase
 
@@ -53,6 +56,7 @@ async def get_all_products() -> str:
     except Exception as e:
         logger.error(f"Error in get_all_products: {e}")
         return f"Error occurred while retrieving products: {str(e)}"
+
 
 # @function_tool
 # async def search_products(category: Optional[str] = None, 
@@ -157,68 +161,97 @@ async def get_user_wishlist(user_id: str) -> str:
         logger.error(f"Error in get_user_wishlist: {e}")
         return f"Error occurred while retrieving wishlist for user {user_id}: {str(e)}"
 
-# @function_tool
-# async def add_items_to_wishlist(user_id: str, product_id: str, 
-#                                priority: str = "medium",
-#                                notes: str = "",
-#                                quantity_desired: int = 1,
-#                                notification_on_stock: bool = True,
-#                                notification_on_price_drop: bool = False) -> str:
-#     """
-#     Add an item to user's wishlist.
+@function_tool
+async def create_user_profile(user_name: str,
+                              phone_number: str,
+                              location: Optional[str]=None,
+                              email: Optional[str]=None,
+                              preferred_language: str="English"):
+    """
+    Create a new user for Twiddles
+
+    Args:
+        user_name (str): name of the user
+        phone_number (str): mobile number of the user
+        location (str): The location of the user this is optional defalut None
+        email (str): The email of the user optional
+        preferred_language (str): The preferred language of the user
+    """
+    user_information = {
+        "name": user_name,
+        "phone": phone_number,
+        "preferred_language": preferred_language
+    }
+    db = await get_database()
+    if location:
+        user_information["location"] = location
     
-#     Args:
-#         user_id (str): Unique identifier for the user
-#         product_id (str): Product ID to add to wishlist
-#         priority (str): Priority level ("high", "medium", "low")
-#         notes (str): Optional notes about the product
-#         quantity_desired (int): Desired quantity
-#         notification_on_stock (bool): Enable stock notifications
-#         notification_on_price_drop (bool): Enable price drop notifications
+    if email:
+        user_information["email"] = email
+    
+    user_information["registration_date"] = datetime.datetime.now(timezone.utc)
+    user_information["customer_type"] = "new"
+    
+    user_id = await db.create_user_profile(user_information)
+    return user_id
+    
+
+@function_tool
+async def add_items_to_wishlist(user_id: str, product_id: str, 
+                               quantity_desired: int = 1,
+                               priority: str = "medium",
+                               notes: str = "",
+                               notification_on_stock: bool = True,
+                               notification_on_price_drop: bool = True) -> str:
+    """
+    Add an item to user's wishlist this can also be user for adding in cart.
+    
+    Args:
+        user_id (str): Unique identifier for the user
+        product_id (str): Product ID to add to wishlist
+        quantity_desired (int): Desired quantity
         
-#     Returns:
-#         str: Success message with the added item ID or error message
+    Returns:
+        str: Success message with the added item ID or error message
         
-#     Example:
-#         result = await add_items_to_wishlist("user001", "TW-BT-001", "high", "For birthday gift", 2)
-#     """
-#     try:
-#         if not user_id or not product_id:
-#             return "Error: User ID and Product ID are required"
+    Example:
+        result = await add_items_to_wishlist("user001", "TW-BT-001", 2)
+    """
+    try:
+        if not user_id or not product_id:
+            return "Error: User ID and Product ID are required"
         
-#         if priority not in ["high", "medium", "low"]:
-#             return "Error: Priority must be 'high', 'medium', or 'low'"
+        if priority not in ["high", "medium", "low"]:
+            return "Error: Priority must be 'high', 'medium', or 'low'"
         
-#         db = get_database()
+        db = get_database()
         
-#         # Create wishlist item
-#         wishlist_item = {
-#             "product_id": product_id,
-#             "added_date": datetime.utcnow(),
-#             "priority": priority,
-#             "notes": notes,
-#             "quantity_desired": quantity_desired,
-#             "notification_on_stock": notification_on_stock,
-#             "notification_on_price_drop": notification_on_price_drop
-#         }
+        # Create wishlist item
+        wishlist_item = {
+            "product_id": product_id,
+            "added_date": datetime.datetime.now(timezone.utc),
+           
+            "quantity_desired": quantity_desired,
+           
+        }
         
-#         loop = asyncio.get_event_loop()
-#         item_ids = await loop.run_in_executor(None, db.add_to_wishlist, user_id, [wishlist_item])
+        # Now using async database operations
+        item_ids = await db.add_to_wishlist(user_id, [wishlist_item])
         
-#         if item_ids is None:
-#             return f"Error: Unable to add item to wishlist for user {user_id}"
+        if item_ids is None:
+            return f"Error: Unable to add item to wishlist for user {user_id}"
         
-#         return json.dumps({
-#             'status': 'success',
-#             'message': f'Item added to wishlist for user {user_id}',
-#             'item_id': item_ids[0],
-#             'product_id': product_id,
-#             'added_item': wishlist_item
-#         }, indent=2, default=str)
+        return json.dumps({
+            'status': 'success',
+            'message': f'Item added to wishlist for user {user_id}',
+            'item_id': item_ids[0],
+            'product_id': product_id,
+            'added_item': wishlist_item
+        }, indent=2, default=str)
         
-#     except Exception as e:
-#         logger.error(f"Error in add_items_to_wishlist: {e}")
-#         return f"Error occurred while adding item to wishlist: {str(e)}"
+    except Exception as e:
+        logger.error(f"Error in add_items_to_wishlist: {e}")
+        return f"Error occurred while adding item to wishlist: {str(e)}"
 
 @function_tool
 async def create_product_order(user_id: str, 
@@ -277,7 +310,7 @@ async def create_product_order(user_id: str,
             "payment_method": payment_method,
             "special_instructions": special_instructions if special_instructions else None,
             "order_status": "pending",
-            "created_at": datetime.utcnow()
+            "created_at": datetime.datetime.now(timezone.utc)
         }
         
         order_id = await db.create_order(order_data)
@@ -347,7 +380,7 @@ async def submit_product_feedback(user_id: str,
             "rating": rating_float,  # Use the converted float value
             "review_text": review_text,
             "order_id": order_id,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.datetime.now(timezone.utc),
             "verified_purchase": order_id is not None
         }
         

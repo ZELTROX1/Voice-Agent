@@ -2,6 +2,8 @@ from dotenv import load_dotenv
 import os
 import json
 import logging
+from typing import Optional
+
 
 from livekit import agents
 from livekit.agents import AgentSession, Agent, RoomInputOptions
@@ -11,17 +13,20 @@ from livekit.plugins import (
     silero,
     cartesia,
     azure,
-    deepgram
+    deepgram,
+    openai
 )
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
-from prompts import AGENT_INSTRUCTION, get_session_instruction
+from prompts import USER_AGENT_INSTRUCTION,NEW_USER_AGENT_INSTRUCTION, get_session_instruction
 from tools import (
     get_all_products,
     get_user_wishlist,
     get_product_recommendations,
     submit_product_feedback,
     create_product_order,
-    get_user_info
+    get_user_info,
+    add_items_to_wishlist,
+    create_user_profile
 )
 from livekit.plugins import elevenlabs
 from livekit.plugins.elevenlabs import VoiceSettings
@@ -33,24 +38,22 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 
 class Assistant(Agent):
-    def __init__(self,user_id:str) -> None:
-        customer_instructions = f"The user ID is {user_id}.And the user informaiton is in session instructions"+AGENT_INSTRUCTION
+    def __init__(self,user_id:Optional[str]) -> None:
+        if not user_id:
+            custom_instructions = f"This is a new user"+NEW_USER_AGENT_INSTRUCTION
+            tools = [get_all_products,get_user_wishlist,get_product_recommendations,submit_product_feedback,create_product_order,create_user_profile,add_items_to_wishlist,get_user_info]
+        else:
+            custom_instructions = f"The user ID is {user_id}.And the user informaiton is in session instructions"+USER_AGENT_INSTRUCTION
+            tools = [get_all_products,get_user_wishlist,get_product_recommendations,submit_product_feedback,create_product_order,get_user_info,add_items_to_wishlist]
         super().__init__(
-            instructions=customer_instructions,
-            tools=[
-                get_all_products,
-                get_user_wishlist,
-                get_product_recommendations,
-                submit_product_feedback,
-                create_product_order,
-                get_user_info
-            ]
+            instructions=custom_instructions,
+            tools=tools
         )
 
 
 async def get_participant_metadata(ctx: agents.JobContext) -> dict:
     default_metadata = {
-        'user_id': 'new_user_001'
+        'user_id': "new_user_002"
     }
     
     try:
@@ -90,12 +93,13 @@ async def get_participant_metadata(ctx: agents.JobContext) -> dict:
         return default_metadata
 
 
-async def create_llm_session(user_id: str):
+async def create_llm_session():
     try:
         llm = groq.LLM(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
             api_key=os.getenv("GROQ_API_KEY"),
         )
+        # llm=openai.LLM(model="gpt-4o-mini")
         
         # tts = cartesia.TTS(
         #     model="sonic-2", 
@@ -149,11 +153,11 @@ async def entrypoint(ctx: agents.JobContext):
         logger.info("Connected to room successfully")
         
         metadata = await get_participant_metadata(ctx)
-        user_id = metadata.get('user_id', 'new_user_001')
+        user_id = metadata.get('user_id', None)
         
-        logger.info(f"Agent configured for user_id: {user_id}")
+        logger.info(f"Agent configured for user_id: {user_id if user_id else "new user"}")
         
-        session = await create_llm_session(user_id)
+        session = await create_llm_session()
         
         await session.start(
             room=ctx.room,
